@@ -16,7 +16,7 @@ IQ source ─► Front end (common) ─► Band router ─► Band decoder ─�
 - [x] **1.** `io/`, `frontend/`, `common/` (CRC, envelope, correlator) + synthetic modulators
 - [x] **2.** LF: EM4100 Manchester → HID FSK; end-to-end CLI
       (biphase/PSK1 chip decode and raw T5577 dumps still pending)
-- [ ] **3.** UHF Gen2: PIE reader decode → Query parsing → FM0 → Miller
+- [x] **3.** UHF Gen2: PIE reader decode → Query parsing → FM0 → Miller M=2/4/8
 - [ ] **4.** HF: 14443A → 14443B → 15693
 - [ ] **5.** Streaming input, adaptive carrier canceller, performance pass
 
@@ -37,13 +37,25 @@ Input formats: raw `cf32` (GNU Radio), raw interleaved `ci16`, 2-channel
 WAV (I/Q), and SigMF (`cf32_le` / `ci16_le`). Raw formats need `--rate`;
 WAV and SigMF carry it.
 
-The LF band is decoded end to end: EM4100 (ASK/Manchester, RF/16–RF/128
-clock auto-detected from the edge-spacing histogram, both polarities) and
-HID Prox (FSK2a, H10301 26-bit Wiegand parsed to facility code / card
-number). One JSONL frame is emitted per repeat detected in the capture.
-Carrier cancellation defaults to *off* for `--band lf` — at LF the tag's
-load modulation rides on the carrier envelope itself. The `uhf` and `hf`
-decoders land in build-order steps 3–4.
+Decoded end to end today:
+
+- **LF** — EM4100 (ASK/Manchester, RF/16–RF/128 clock auto-detected from
+  the edge-spacing histogram, both polarities) and HID Prox (FSK2a,
+  H10301 26-bit Wiegand parsed to facility code / card number). One JSONL
+  frame per repeat detected in the capture.
+- **UHF** — EPC Gen2 both directions: reader PIE (delimiter hunt, Tari /
+  RTcal / TRcal measured from the capture, Query / QueryRep /
+  QueryAdjust / ACK / NAK / Req_RN / Select parsed with CRC-5/16 checks)
+  and tag backscatter (per-gap carrier cancellation + channel-phase
+  projection, preamble correlation, FM0 and Miller M=2/4/8, TRext pilot
+  tolerated; RN16, PC+EPC+CRC-16, handle replies). The Query's DR/M/TRext
+  fields plus the measured TRcal configure the tag decoder (BLF =
+  DR/TRcal), per the brief.
+
+The frontend's *global* DC block defaults to off: LF decodes the carrier
+envelope itself, and the UHF decoder cancels the carrier per reply
+window; `--dc-cutoff` forces it on. The `hf` decoder lands in
+build-order step 4.
 
 ## Layout
 

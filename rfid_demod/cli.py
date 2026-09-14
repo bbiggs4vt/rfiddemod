@@ -36,9 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--freq-offset", type=float, default=0.0,
                    help="reader carrier offset from DC in Hz (retuned out)")
     p.add_argument("--dc-cutoff", type=float, default=None,
-                   help="carrier-cancellation tracker cutoff in Hz "
-                        "(default: 1000 for hf/uhf, off for lf — the LF "
-                        "envelope rides on the carrier itself)")
+                   help="global carrier-cancellation tracker cutoff in Hz "
+                        "(default: off — LF decodes the carrier envelope "
+                        "itself and the UHF decoder cancels the carrier "
+                        "per reply window; set a cutoff to force the "
+                        "frontend DC tracker on)")
     p.add_argument("--no-dc-block", action="store_true",
                    help="disable carrier cancellation")
     p.add_argument("--agc", action="store_true",
@@ -59,12 +61,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
               file=sys.stderr)
         return 2
 
-    if args.no_dc_block:
-        dc_cutoff = None
-    elif args.dc_cutoff is not None:
-        dc_cutoff = args.dc_cutoff
-    else:
-        dc_cutoff = None if args.band == "lf" else 1e3
+    dc_cutoff = None if args.no_dc_block else args.dc_cutoff
 
     config = frontend.FrontendConfig(
         sample_rate=rate,

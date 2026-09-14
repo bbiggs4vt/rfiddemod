@@ -109,6 +109,31 @@ def check_crc16_gen2(frame: bytes) -> bool:
     return crc16_gen2(frame[:-2]) == int.from_bytes(frame[-2:], "big")
 
 
+def crc16_bits(
+    bits: Iterable[int],
+    poly: int = 0x1021,
+    init: int = 0xFFFF,
+    xorout: int = 0x0000,
+) -> int:
+    """CRC-16 over a bit sequence, first-transmitted bit first.
+
+    Equivalent to :func:`crc16` (non-reflected) on byte-aligned input; Gen2
+    frames like Select are not byte-aligned, hence the bit-level form.
+    """
+    crc = init & 0xFFFF
+    for bit in bits:
+        feedback = ((crc >> 15) ^ (bit & 1)) & 1
+        crc = (crc << 1) & 0xFFFF
+        if feedback:
+            crc ^= poly
+    return crc ^ xorout
+
+
+def crc16_gen2_bits(bits: Iterable[int]) -> int:
+    """EPC Gen2 CRC-16 over bits; returns the on-air (inverted) value."""
+    return crc16_bits(bits, xorout=0xFFFF)
+
+
 _CRC5_POLY = 0b01001  # x^5 + x^3 + 1
 _CRC5_INIT = 0b01001
 

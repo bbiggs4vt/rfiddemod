@@ -2,13 +2,56 @@
 
 Every symbol ends in a low pulse of width PW; the information is in the
 symbol duration: data-0 lasts 1 Tari, data-1 lasts 1.5-2 Tari
-(Tari = 6.25-25 us). The preamble (delimiter + Tari + RTcal + TRcal) and
-frame-sync generation/detection belong to the UHF decoder (step 3).
+(Tari = 6.25-25 us). A preamble (delimiter + data-0 + RTcal + TRcal)
+starts an inventory round; a frame-sync (same, without TRcal) precedes
+every other command. RTcal = data-0 + data-1 lengths; TRcal is
+1.1x-3x RTcal and sets the tag's backscatter link frequency.
 """
 
 from __future__ import annotations
 
 import numpy as np
+
+
+def _symbol(total: int, pw: int) -> np.ndarray:
+    sym = np.ones(total, dtype=np.uint8)
+    sym[-pw:] = 0
+    return sym
+
+
+def preamble(
+    samples_per_tari: int,
+    delim_samples: int,
+    trcal_taris: float,
+    data1_ratio: float = 2.0,
+    pw_ratio: float = 0.5,
+) -> np.ndarray:
+    """Preamble levels: delimiter low + data-0 + RTcal + TRcal symbols."""
+    pw = max(1, round(pw_ratio * samples_per_tari))
+    rtcal = round((1.0 + data1_ratio) * samples_per_tari)
+    trcal = round(trcal_taris * samples_per_tari)
+    return np.concatenate([
+        np.zeros(delim_samples, dtype=np.uint8),
+        _symbol(samples_per_tari, pw),
+        _symbol(rtcal, pw),
+        _symbol(trcal, pw),
+    ])
+
+
+def frame_sync(
+    samples_per_tari: int,
+    delim_samples: int,
+    data1_ratio: float = 2.0,
+    pw_ratio: float = 0.5,
+) -> np.ndarray:
+    """Frame-sync levels: delimiter low + data-0 + RTcal (no TRcal)."""
+    pw = max(1, round(pw_ratio * samples_per_tari))
+    rtcal = round((1.0 + data1_ratio) * samples_per_tari)
+    return np.concatenate([
+        np.zeros(delim_samples, dtype=np.uint8),
+        _symbol(samples_per_tari, pw),
+        _symbol(rtcal, pw),
+    ])
 
 
 def encode(
