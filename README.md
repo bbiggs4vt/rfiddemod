@@ -17,7 +17,8 @@ IQ source ─► Front end (common) ─► Band router ─► Band decoder ─�
 - [x] **2.** LF: EM4100 Manchester → HID FSK; end-to-end CLI
       (biphase/PSK1 chip decode and raw T5577 dumps still pending)
 - [x] **3.** UHF Gen2: PIE reader decode → Query parsing → FM0 → Miller M=2/4/8
-- [ ] **4.** HF: 14443A → 14443B → 15693
+- [x] **4.** HF: 14443A → 14443B → 15693 (1-of-256 and dual-subcarrier
+      15693 modes and 14443 high bit rates still pending)
 - [ ] **5.** Streaming input, adaptive carrier canceller, performance pass
 
 ## Install & test
@@ -52,10 +53,17 @@ Decoded end to end today:
   fields plus the measured TRcal configure the tag decoder (BLF =
   DR/TRcal), per the brief.
 
+- **HF** — ISO 14443A (modified-Miller pause decode → REQA / anticollision
+  / Select with parity, BCC and CRC-A checks; fc/16 OOK-subcarrier
+  Manchester replies: ATQA, UID, SAK), ISO 14443B (10% ASK NRZ character
+  framing, BPSK-subcarrier ATQB, CRC-B), and ISO 15693 (1-of-4 PPM
+  commands, single-subcarrier high-data-rate replies, Inventory → UID).
+  All three sub-decoders run per capture; structural gates keep them from
+  firing on each other's waveforms.
+
 The frontend's *global* DC block defaults to off: LF decodes the carrier
-envelope itself, and the UHF decoder cancels the carrier per reply
-window; `--dc-cutoff` forces it on. The `hf` decoder lands in
-build-order step 4.
+envelope itself, and the UHF/HF decoders cancel the carrier per reply
+window (or in the subcarrier domain); `--dc-cutoff` forces it on.
 
 ## Layout
 

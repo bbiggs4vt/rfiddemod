@@ -24,6 +24,19 @@ def find_edges(binary: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return idx + 1, d[idx]
 
 
+def level_runs(binary: np.ndarray, level: int = 0) -> Tuple[np.ndarray, np.ndarray]:
+    """Maximal runs of ``level`` in a 0/1 waveform: ``(starts, lengths)``."""
+    b = np.asarray(binary, dtype=np.int8)
+    positions, _ = find_edges(b)
+    bounds = np.concatenate(([0], positions, [b.size]))
+    starts, lengths = [], []
+    for s, e in zip(bounds[:-1], bounds[1:]):
+        if b[s] == level:
+            starts.append(s)
+            lengths.append(e - s)
+    return np.array(starts, dtype=np.int64), np.array(lengths, dtype=np.int64)
+
+
 def edge_spacings(positions: np.ndarray) -> np.ndarray:
     """Sample counts between consecutive edges."""
     return np.diff(np.asarray(positions))
