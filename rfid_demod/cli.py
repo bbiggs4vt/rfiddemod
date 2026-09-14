@@ -34,8 +34,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "(implies --stream)")
     p.add_argument("--out", default="-", metavar="PATH",
                    help="output JSONL file (default: stdout)")
-    p.add_argument("--fmt", choices=("cf32", "ci16", "wav", "sigmf"),
-                   help="input format (default: inferred from suffix)")
+    p.add_argument("--fmt", choices=("cf32", "ci16", "wav", "sigmf", "blue"),
+                   help="input format (default: inferred from suffix, or "
+                        "from the BLUE magic bytes)")
     p.add_argument("--rate", type=float,
                    help="input sample rate in Hz (required for raw captures "
                         "without embedded metadata)")

@@ -7,6 +7,10 @@ Supported formats:
 * ``wav``   — 2-channel WAV, channel 0 = I, channel 1 = Q
 * ``sigmf`` — SigMF pair (``.sigmf-meta`` JSON + ``.sigmf-data``);
               datatypes ``cf32_le`` and ``ci16_le``
+* ``blue``  — MIDAS BLUE / X-Midas (type 1000, complex formats); sample
+              rate from ``xdelta``, center frequency from keywords when
+              present. Detected by the ``BLUE`` magic even without a
+              recognized suffix.
 
 Everything is returned as complex64 in roughly [-1, 1].
 """
@@ -33,6 +37,9 @@ _SUFFIX_TO_FMT = {
     ".wav": "wav",
     ".sigmf-meta": "sigmf",
     ".sigmf-data": "sigmf",
+    ".blue": "blue",
+    ".tmp": "blue",   # conventional X-Midas result-file suffix
+    ".prm": "blue",
 }
 
 
@@ -42,6 +49,7 @@ class IQCapture:
     sample_rate: Optional[float] = None    # Hz, when the container carries it
     center_freq: Optional[float] = None    # Hz, when the container carries it
     source: Optional[str] = None
+    metadata: Optional[dict] = None        # container keywords (SigMF/BLUE)
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -49,6 +57,10 @@ class IQCapture:
 
 def _infer_format(path: Path) -> str:
     fmt = _SUFFIX_TO_FMT.get(path.suffix.lower())
+    if fmt is None and path.is_file():
+        with open(path, "rb") as fh:
+            if fh.read(4) in (b"BLUE", b"blue"):
+                return "blue"
     if fmt is None:
         raise ValueError(
             f"cannot infer IQ format from suffix {path.suffix!r}; pass fmt= explicitly"
@@ -125,6 +137,13 @@ def load(path: Union[str, Path], fmt: Optional[str] = None) -> IQCapture:
         return _load_wav(path)
     if fmt == "sigmf":
         return _load_sigmf(path)
+    if fmt == "blue":
+        from . import blue
+
+        samples, sample_rate, center_freq, keywords = blue.load(path)
+        return IQCapture(samples, sample_rate=sample_rate,
+                         center_freq=center_freq, source=str(path),
+                         metadata=keywords or None)
     raise ValueError(f"unknown IQ format {fmt!r}")
 
 

@@ -38,8 +38,11 @@ sdr_rx ... | rfid-demod --band lf --rate 1e6 --fmt cf32 --in - --stream
 ```
 
 Input formats: raw `cf32` (GNU Radio), raw interleaved `ci16`, 2-channel
-WAV (I/Q), and SigMF (`cf32_le` / `ci16_le`). Raw formats need `--rate`;
-WAV and SigMF carry it.
+WAV (I/Q), SigMF (`cf32_le` / `ci16_le`), and MIDAS BLUE / X-Midas
+(type 1000, complex formats; recognized by suffix `.tmp`/`.prm`/`.blue`
+or by the `BLUE` magic bytes). Raw formats need `--rate`; WAV, SigMF and
+BLUE carry it (BLUE via `xdelta`, with the center frequency picked up
+from extended-header keywords when present).
 
 Decoded end to end today:
 
