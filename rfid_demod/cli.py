@@ -35,8 +35,10 @@ def build_parser() -> argparse.ArgumentParser:
                         "without embedded metadata)")
     p.add_argument("--freq-offset", type=float, default=0.0,
                    help="reader carrier offset from DC in Hz (retuned out)")
-    p.add_argument("--dc-cutoff", type=float, default=1e3,
-                   help="carrier-cancellation tracker cutoff in Hz (default 1000)")
+    p.add_argument("--dc-cutoff", type=float, default=None,
+                   help="carrier-cancellation tracker cutoff in Hz "
+                        "(default: 1000 for hf/uhf, off for lf — the LF "
+                        "envelope rides on the carrier itself)")
     p.add_argument("--no-dc-block", action="store_true",
                    help="disable carrier cancellation")
     p.add_argument("--agc", action="store_true",
@@ -57,10 +59,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
               file=sys.stderr)
         return 2
 
+    if args.no_dc_block:
+        dc_cutoff = None
+    elif args.dc_cutoff is not None:
+        dc_cutoff = args.dc_cutoff
+    else:
+        dc_cutoff = None if args.band == "lf" else 1e3
+
     config = frontend.FrontendConfig(
         sample_rate=rate,
         freq_offset=args.freq_offset,
-        dc_block_cutoff_hz=None if args.no_dc_block else args.dc_cutoff,
+        dc_block_cutoff_hz=dc_cutoff,
         agc=args.agc,
         output_rate=args.work_rate or WORKING_RATES[args.band],
     )

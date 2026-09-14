@@ -14,7 +14,8 @@ IQ source ─► Front end (common) ─► Band router ─► Band decoder ─�
 ## Status (build order)
 
 - [x] **1.** `io/`, `frontend/`, `common/` (CRC, envelope, correlator) + synthetic modulators
-- [ ] **2.** LF: EM4100 Manchester → HID FSK; end-to-end CLI
+- [x] **2.** LF: EM4100 Manchester → HID FSK; end-to-end CLI
+      (biphase/PSK1 chip decode and raw T5577 dumps still pending)
 - [ ] **3.** UHF Gen2: PIE reader decode → Query parsing → FM0 → Miller
 - [ ] **4.** HF: 14443A → 14443B → 15693
 - [ ] **5.** Streaming input, adaptive carrier canceller, performance pass
@@ -29,15 +30,20 @@ pytest
 ## Usage
 
 ```sh
-rfid-demod --band uhf --rate 2e6 --in capture.cf32 --out frames.jsonl
+rfid-demod --band lf --rate 1e6 --in capture.cf32 --out frames.jsonl
 ```
 
 Input formats: raw `cf32` (GNU Radio), raw interleaved `ci16`, 2-channel
 WAV (I/Q), and SigMF (`cf32_le` / `ci16_le`). Raw formats need `--rate`;
-WAV and SigMF carry it. The front end (retune → carrier cancellation →
-AGC/normalize → decimation) and the JSONL sink are functional; the band
-decoders themselves land in build-order steps 2–4, so the CLI currently
-exits with a "not implemented" message after the front end runs.
+WAV and SigMF carry it.
+
+The LF band is decoded end to end: EM4100 (ASK/Manchester, RF/16–RF/128
+clock auto-detected from the edge-spacing histogram, both polarities) and
+HID Prox (FSK2a, H10301 26-bit Wiegand parsed to facility code / card
+number). One JSONL frame is emitted per repeat detected in the capture.
+Carrier cancellation defaults to *off* for `--band lf` — at LF the tag's
+load modulation rides on the carrier envelope itself. The `uhf` and `hf`
+decoders land in build-order steps 3–4.
 
 ## Layout
 
