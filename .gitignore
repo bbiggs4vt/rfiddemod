@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+
+# large IQ captures don't belong in git (fixtures are the small exception)
+*.cf32
+*.ci16
+*.sigmf-data
+!tests/fixtures/*
