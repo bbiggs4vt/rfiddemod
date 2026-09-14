@@ -32,6 +32,9 @@ _EXPECTED_REPLY = {
 
 
 def decode(samples: np.ndarray, sample_rate: float) -> List[Frame]:
+    from rfid_demod.decoders import check_rate
+
+    check_rate("uhf", sample_rate)
     x = np.asarray(samples)
     env = np.abs(x)
     rframes = reader_frames(env, sample_rate)

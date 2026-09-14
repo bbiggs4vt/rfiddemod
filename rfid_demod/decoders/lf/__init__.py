@@ -30,6 +30,9 @@ def decode(
     carrier_freq: float = DEFAULT_CARRIER,
 ) -> List[Frame]:
     """Decode all LF frames found in a capture, sorted by timestamp."""
+    from rfid_demod.decoders import check_rate
+
+    check_rate("lf", sample_rate)
     env = env_mod.envelope(np.asarray(samples))
     frames = decode_ask(env, sample_rate, carrier_freq)
     frames += decode_fsk(env, sample_rate, carrier_freq)

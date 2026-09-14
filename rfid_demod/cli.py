@@ -145,7 +145,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             for frame in frames:
                 writer.write(frame)
             count = writer.count
-    except NotImplementedError as exc:
+    except (NotImplementedError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 

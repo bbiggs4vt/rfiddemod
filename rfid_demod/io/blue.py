@@ -35,7 +35,7 @@ _ELEMENT = {
 _KEY_TYPES = {"D": "d", "F": "f", "L": "i", "X": "q", "I": "h", "B": "b"}
 
 _FREQ_TAGS = ("RF", "RFFREQ", "RF_FREQ", "FREQ", "CENTER_FREQ", "CENTERFREQ",
-              "COLRF", "SNAP_RF")
+              "COLRF", "SNAP_RF", "VRF", "SBT", "FNOM")
 
 
 def _endian(rep: bytes) -> str:

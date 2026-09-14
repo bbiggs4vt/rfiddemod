@@ -149,3 +149,12 @@ def test_cli_decodes_blue_lf_capture(tmp_path):
     assert rc == 0
     records = [json.loads(line) for line in out.read_text().splitlines()]
     assert records and all(r["fields"]["id"] == "1234567890" for r in records)
+
+
+def test_low_rate_capture_refused(tmp_path):
+    # a narrowband survey snip cannot contain HF signaling; the decoder
+    # must refuse rather than emit garbage frames
+    path = tmp_path / "narrow.tmp"
+    write_blue(path, _tone(2000, seed=4), 20_000, fmt="CF")
+    rc = cli.main(["--band", "hf", "--in", str(path), "--out", "/dev/null"])
+    assert rc == 3

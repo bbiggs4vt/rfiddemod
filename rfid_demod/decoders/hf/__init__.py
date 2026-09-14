@@ -23,6 +23,9 @@ from . import iso14443a, iso14443b, iso15693
 
 
 def decode(samples: np.ndarray, sample_rate: float) -> List[Frame]:
+    from rfid_demod.decoders import check_rate
+
+    check_rate("hf", sample_rate)
     x = np.asarray(samples)
     frames: List[Frame] = []
     frames += iso14443a.decode(x, sample_rate)
