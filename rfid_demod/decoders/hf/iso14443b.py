@@ -119,8 +119,8 @@ def decode_tag(window: np.ndarray, sample_rate: float) -> Optional[Tuple[dict, i
     etu = _etu(sample_rate)
     bb = mix_baseband(window, sample_rate, SUBCARRIER, avg_cycles=1.0)
     mag = np.abs(bb)   # mix_baseband already blanks the invalid edges
-    ref = float(np.percentile(mag, 99))
-    if ref < 4.0 * float(np.percentile(mag, 5)):
+    ref, low = (float(v) for v in env_mod.percentile_est(mag, [99, 5]))
+    if ref < 4.0 * low:
         return None                       # no subcarrier burst in this gap
     active = np.flatnonzero(mag > 0.5 * ref)
     if active.size < 12 * etu:

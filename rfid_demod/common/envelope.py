@@ -13,12 +13,38 @@ def envelope(x: np.ndarray) -> np.ndarray:
     return np.abs(x)
 
 
+def sliding_mean(x: np.ndarray, window: int) -> np.ndarray:
+    """Centered sliding mean over ``window`` samples, O(N) via cumsums.
+
+    Zero-padded at the edges (identical to ``np.convolve(x, ones(w)/w,
+    'same')``, but linear-time). Accepts real or complex input.
+    """
+    x = np.asarray(x)
+    out_dtype = np.complex128 if np.iscomplexobj(x) else np.float64
+    if window <= 1:
+        return x.astype(out_dtype)
+    n = x.size
+    csum = np.concatenate(([0], np.cumsum(x, dtype=out_dtype)))
+    if window >= n:
+        idx = np.arange(n)
+        lo = np.clip(idx - window // 2, 0, n)
+        hi = np.clip(idx - window // 2 + window, 0, n)
+        return (csum[hi] - csum[lo]) / window
+    # out[i] averages x[i - w//2 : i - w//2 + w]; the bulk is a plain
+    # slice difference, only the edge regions need index arithmetic.
+    out = np.empty(n, dtype=out_dtype)
+    a = window // 2
+    out[a:a + n - window + 1] = (csum[window:] - csum[:-window]) / window
+    left = np.arange(a)
+    out[:a] = csum[left + window - a] / window
+    right = np.arange(a + n - window + 1, n)
+    out[a + n - window + 1:] = (csum[n] - csum[right - a]) / window
+    return out
+
+
 def moving_average(x: np.ndarray, window: int) -> np.ndarray:
     """Centered moving average (zero group delay), window in samples."""
-    if window <= 1:
-        return np.asarray(x, dtype=np.float64)
-    kernel = np.full(window, 1.0 / window)
-    return np.convolve(np.asarray(x, dtype=np.float64), kernel, mode="same")
+    return sliding_mean(np.asarray(x, dtype=np.float64), window)
 
 
 def lowpass_1pole(x: np.ndarray, sample_rate: float, cutoff_hz: float) -> np.ndarray:
@@ -30,14 +56,25 @@ def lowpass_1pole(x: np.ndarray, sample_rate: float, cutoff_hz: float) -> np.nda
     return lfilter([1.0 - a], [1.0, -a], x)
 
 
+def percentile_est(x: np.ndarray, q, max_samples: int = 100_000):
+    """Percentile estimate from a strided subsample of large arrays.
+
+    Threshold estimation doesn't need exact order statistics over tens of
+    megasamples; a regular subsample is statistically equivalent here and
+    keeps the partition cost bounded.
+    """
+    x = np.asarray(x)
+    step = max(1, x.size // max_samples)
+    return np.percentile(x[::step], q)
+
+
 def midpoint_threshold(env: np.ndarray, lo_pct: float = 10.0, hi_pct: float = 90.0) -> float:
     """Threshold halfway between the low and high envelope levels.
 
     Percentiles rather than min/max so noise spikes don't skew it.
     """
-    lo = float(np.percentile(env, lo_pct))
-    hi = float(np.percentile(env, hi_pct))
-    return 0.5 * (lo + hi)
+    lo, hi = percentile_est(env, [lo_pct, hi_pct])
+    return 0.5 * (float(lo) + float(hi))
 
 
 def _hysteresis_slice(env: np.ndarray, lo: float, hi: float) -> np.ndarray:

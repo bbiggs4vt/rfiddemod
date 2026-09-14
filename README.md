@@ -19,7 +19,7 @@ IQ source ─► Front end (common) ─► Band router ─► Band decoder ─�
 - [x] **3.** UHF Gen2: PIE reader decode → Query parsing → FM0 → Miller M=2/4/8
 - [x] **4.** HF: 14443A → 14443B → 15693 (1-of-256 and dual-subcarrier
       15693 modes and 14443 high bit rates still pending)
-- [ ] **5.** Streaming input, adaptive carrier canceller, performance pass
+- [x] **5.** Streaming input, adaptive carrier canceller, performance pass
 
 ## Install & test
 
@@ -32,6 +32,9 @@ pytest
 
 ```sh
 rfid-demod --band lf --rate 1e6 --in capture.cf32 --out frames.jsonl
+
+# streaming: constant memory, frames emitted as they finalize
+sdr_rx ... | rfid-demod --band lf --rate 1e6 --fmt cf32 --in - --stream
 ```
 
 Input formats: raw `cf32` (GNU Radio), raw interleaved `ci16`, 2-channel
@@ -63,7 +66,22 @@ Decoded end to end today:
 
 The frontend's *global* DC block defaults to off: LF decodes the carrier
 envelope itself, and the UHF/HF decoders cancel the carrier per reply
-window (or in the subcarrier domain); `--dc-cutoff` forces it on.
+window (or in the subcarrier domain); `--dc-cutoff` forces it on. For
+monostatic captures with *drifting* leakage, `--adaptive-cancel` estimates
+the carrier from quiet (modulation-free) segments and interpolates it
+across the frames instead of tracking through them.
+
+**Streaming** (`--stream`, implied by `--in -`) decodes raw cf32/ci16
+incrementally over a sliding overlapped buffer: constant memory, absolute
+timestamps, frames emitted once (duplicates from the re-decoded overlap
+are suppressed). The overlap covers the longest frame — and, for UHF/HF,
+the command→reply exchange, so the Query context survives block
+boundaries. No decimation/AGC in stream mode; capture at the working
+rate. `--freq-offset` is applied phase-continuously.
+
+**Throughput** (single core, `python scripts/bench.py`): LF ~14-17x
+realtime at 1 Msps, UHF ~3x at 2 Msps, HF ~0.5x at 13.56 Msps — the
+13.56 Msps HF rate is the candidate for a compiled hot path later.
 
 ## Layout
 

@@ -24,7 +24,7 @@ from rfid_demod.encodings import manchester
 from rfid_demod.io import Frame
 from rfid_demod.parsers import iso14443a_frames as a_frames
 
-from ._util import align_half_split
+from ._util import align_half_split, window_sums
 
 FC = 13.56e6
 SUBCARRIER = FC / 16          # 847.5 kHz
@@ -158,10 +158,9 @@ def decode_tag(
     """Decode one reply window; returns (fields, start_offset, bits)."""
     half = _bit_samples(sample_rate) / 2.0
     sc = mix_magnitude(window, sample_rate, SUBCARRIER, avg_cycles=2.0)
-    ref = float(np.percentile(sc, 99))
-    # p10, not the median: a reply can occupy most of the window, which
-    # would drag a median "floor" up into the signal level.
-    floor = float(np.percentile(sc, 10))
+    # p10 for the floor, not the median: a reply can occupy most of the
+    # window, which would drag a median "floor" up into the signal level.
+    ref, floor = (float(v) for v in env_mod.percentile_est(sc, [99, 10]))
     threshold = 0.5 * (ref + floor)
 
     # Coarse SOF position from a heavily smoothed envelope (single noise
@@ -180,7 +179,8 @@ def decode_tag(
     # length counting + parity/CRC is far more robust than level sensing).
     expected_bits = {"atqa": 18, "uid": 45, "sak": 27}.get(expected)
     bits: List[int] = []
-    sig = float(sc[start:start + int(half)].mean())   # SOF's ON half
+    csum = window_sums(sc)
+    sig = float(csum[start + int(half)] - csum[start]) / int(half)  # SOF ON half
     max_bits = int((sc.size - start) / (2 * half))
     for k in range(max_bits):
         if expected_bits is not None and len(bits) > expected_bits:
@@ -188,8 +188,8 @@ def decode_tag(
         a0 = start + int(round(2 * k * half))
         a1 = start + int(round((2 * k + 1) * half))
         a2 = start + int(round((2 * k + 2) * half))
-        first = float(sc[a0:a1].mean()) if a1 > a0 else 0.0
-        second = float(sc[a1:a2].mean()) if a2 > a1 else 0.0
+        first = (csum[a1] - csum[a0]) / (a1 - a0) if a1 > a0 else 0.0
+        second = (csum[a2] - csum[a1]) / (a2 - a1) if a2 > a1 else 0.0
         current = max(first, second)
         end_factor = 0.15 if expected_bits is not None else 0.35
         if current < floor + end_factor * (sig - floor):

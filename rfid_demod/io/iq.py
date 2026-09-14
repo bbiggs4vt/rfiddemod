@@ -14,6 +14,7 @@ Everything is returned as complex64 in roughly [-1, 1].
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Union
@@ -125,6 +126,55 @@ def load(path: Union[str, Path], fmt: Optional[str] = None) -> IQCapture:
     if fmt == "sigmf":
         return _load_sigmf(path)
     raise ValueError(f"unknown IQ format {fmt!r}")
+
+
+_STREAM_ITEMSIZE = {"cf32": 8, "ci16": 4}   # bytes per complex sample
+
+
+def iter_blocks(
+    source: Union[str, Path],
+    fmt: str,
+    block_samples: int = 1 << 18,
+):
+    """Yield complex64 blocks from a raw IQ file or stdin (``source='-'``).
+
+    Streaming supports the raw formats (cf32 / ci16); containerized
+    formats (WAV, SigMF) are file-based — load() them instead. Partial
+    reads (pipes) are accumulated; trailing bytes that don't complete a
+    sample are dropped at EOF.
+    """
+    if fmt not in _STREAM_ITEMSIZE:
+        raise ValueError(f"streaming supports cf32/ci16, not {fmt!r}")
+    itemsize = _STREAM_ITEMSIZE[fmt]
+    want = block_samples * itemsize
+
+    if str(source) == "-":
+        fh = sys.stdin.buffer
+        own = False
+    else:
+        fh = open(source, "rb")
+        own = True
+    try:
+        pending = b""
+        eof = False
+        while not eof:
+            while len(pending) < want:
+                chunk = fh.read(want - len(pending))
+                if not chunk:
+                    eof = True
+                    break
+                pending += chunk
+            usable = len(pending) - len(pending) % itemsize
+            if usable == 0:
+                break
+            raw, pending = pending[:usable], pending[usable:]
+            if fmt == "cf32":
+                yield np.frombuffer(raw, dtype="<c8").astype(np.complex64)
+            else:
+                yield _ci16_to_complex64(np.frombuffer(raw, dtype="<i2"))
+    finally:
+        if own:
+            fh.close()
 
 
 def save(path: Union[str, Path], samples: np.ndarray, fmt: Optional[str] = None) -> None:

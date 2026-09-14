@@ -27,7 +27,7 @@ from rfid_demod.common.subcarrier import mix_magnitude
 from rfid_demod.io import Frame
 from rfid_demod.parsers import iso15693_frames as v_frames
 
-from ._util import align_half_split
+from ._util import align_half_split, window_sums
 
 FC = 13.56e6
 SUBCARRIER = FC / 32          # 423.75 kHz
@@ -136,8 +136,8 @@ def decode_tag(
     t9 = _t9(sample_rate)
     half = 2 * t9                     # 18.88 us half-bit
     sc = mix_magnitude(window, sample_rate, SUBCARRIER, avg_cycles=2.0)
-    ref = float(np.percentile(sc, 99))
-    floor = float(np.percentile(sc, 10))   # p10: replies can dominate the window
+    # p10 floor: replies can dominate the window
+    ref, floor = (float(v) for v in env_mod.percentile_est(sc, [99, 10]))
     threshold = 0.5 * (ref + floor)
 
     # Coarse start = onset of the 56.64 us SOF burst on a heavily smoothed
@@ -151,8 +151,10 @@ def decode_tag(
     grid = float(align_half_split(sc, coarse, half, nbits=8))
 
     # ON/OFF against a tracked signal level seeded from the SOF burst.
+    csum = window_sums(sc)
     burst_lo = max(0, int(grid - 3.0 * half))
-    sig = float(sc[burst_lo:max(burst_lo + 1, int(grid))].mean())
+    burst_hi = max(burst_lo + 1, int(grid))
+    sig = float(csum[burst_hi] - csum[burst_lo]) / (burst_hi - burst_lo)
     bits: List[int] = []
     k = 0
     while True:
@@ -161,8 +163,8 @@ def decode_tag(
         a2 = int(round(grid + (2 * k + 2) * half))
         if a2 > sc.size:
             break
-        first = float(sc[a0:a1].mean())
-        second = float(sc[a1:a2].mean())
+        first = (csum[a1] - csum[a0]) / (a1 - a0)
+        second = (csum[a2] - csum[a1]) / (a2 - a1)
         level = floor + 0.4 * (sig - floor)
         f_on, s_on = first > level, second > level
         if f_on and s_on:              # EOF burst reached

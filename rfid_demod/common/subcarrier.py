@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .envelope import sliding_mean
+
 
 def mix_baseband(
     x: np.ndarray,
@@ -23,8 +25,7 @@ def mix_baseband(
     n = np.arange(x.size)
     bb = x * np.exp(-2j * np.pi * freq * n / sample_rate)
     window = max(1, int(round(avg_cycles * sample_rate / freq)))
-    kernel = np.full(window, 1.0 / window)
-    out = np.convolve(bb, kernel, mode="same")
+    out = sliding_mean(bb, window)
     # The partially-filled windows at the array edges do not cancel the
     # carrier (the average no longer spans whole subcarrier cycles) and
     # would otherwise look like huge signal spikes — zero them.

@@ -69,12 +69,24 @@ def find_frames(
     tag is powered, so multiple hits for the same ID are expected.
     """
     bits = np.asarray(bits, dtype=np.uint8)
-    for i in range(0, bits.size - FRAME_BITS + 1):
-        if valid is not None and not valid[i:i + FRAME_BITS].all():
-            continue
+    n = bits.size
+    if n < FRAME_BITS:
+        return
+    # Prefilter: the 9-ones header (all-zeros when inverted) plus the stop
+    # bit weed out almost every offset before the parity checks run.
+    header_sum = np.convolve(bits, np.ones(_HEADER, dtype=np.int64), "valid")
+    header_sum = header_sum[:n - FRAME_BITS + 1]
+    stop = bits[FRAME_BITS - 1:]
+    candidates = ((header_sum == _HEADER) & (stop == 0)) \
+        | ((header_sum == 0) & (stop == 1))
+    if valid is not None:
+        vsum = np.concatenate(([0], np.cumsum(valid.astype(np.int64))))
+        candidates &= (vsum[FRAME_BITS:] - vsum[:-FRAME_BITS]) == FRAME_BITS
+
+    for i in np.flatnonzero(candidates):
         window = bits[i:i + FRAME_BITS]
         for inv in (False, True):
             fields = parse_frame(window ^ 1 if inv else window)
             if fields is not None:
-                yield i, fields, inv
+                yield int(i), fields, inv
                 break

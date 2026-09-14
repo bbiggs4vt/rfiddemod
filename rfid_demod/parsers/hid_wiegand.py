@@ -84,13 +84,25 @@ def find_frames(
     Yields ``(bit_offset, fields, inverted, hid_value)``.
     """
     bits = np.asarray(bits, dtype=np.uint8)
+    n = bits.size
+    if n < FRAME_BITS:
+        return
+    if valid is not None:
+        vsum = np.concatenate(([0], np.cumsum(valid.astype(np.int64))))
+        valid_window = (vsum[FRAME_BITS:] - vsum[:-FRAME_BITS]) == FRAME_BITS
+    else:
+        valid_window = None
+
     for inv in (False, True):
         stream = bits ^ 1 if inv else bits
-        for i in range(0, stream.size - FRAME_BITS + 1):
-            if valid is not None and not valid[i:i + FRAME_BITS].all():
-                continue
-            if not np.array_equal(stream[i:i + 8], PREAMBLE):
-                continue
+        # Prefilter: vectorized preamble match; only candidates get the
+        # Manchester decode attempt.
+        match = np.ones(n - FRAME_BITS + 1, dtype=bool)
+        for j, p in enumerate(PREAMBLE):
+            match &= stream[j:j + n - FRAME_BITS + 1] == p
+        if valid_window is not None:
+            match &= valid_window
+        for i in np.flatnonzero(match):
             try:
                 payload = manchester.decode(stream[i + 8:i + FRAME_BITS])
             except ValueError:
@@ -100,4 +112,4 @@ def find_frames(
                 value = (value << 1) | int(b)
             fields = unpack(value)
             if fields is not None:
-                yield i, fields, inv, value
+                yield int(i), fields, inv, value
